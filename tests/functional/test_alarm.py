@@ -10,13 +10,19 @@ import pytest
     ],
 )
 def test_alarm_arms_and_triggers(device_driver, sensor_value, threshold, expected_state):
-    device_driver.backend.sensor_value = sensor_value
-    device_driver.backend.alarm_threshold = threshold
+    try:
+        device_driver.sensor_start()
+        device_driver.set_sensor_value(sensor_value)
+        device_driver.set_alarm_threshold(threshold)
 
-    status = device_driver.alarm_arm()
+        status = device_driver.alarm_arm()
 
-    assert status["state"] == expected_state
-    assert status["threshold"] == threshold
+        assert status["state"] == expected_state
+        assert status["threshold"] == threshold
+    finally:
+        device_driver.alarm_disarm()
+        device_driver.sensor_stop()
+        device_driver.set_alarm_threshold(80)
 
 
 @pytest.mark.parametrize(
@@ -27,27 +33,41 @@ def test_alarm_arms_and_triggers(device_driver, sensor_value, threshold, expecte
     ],
 )
 def test_alarm_can_clear_triggered_state(device_driver, sensor_value, threshold):
-    device_driver.backend.sensor_value = sensor_value
-    device_driver.backend.alarm_threshold = threshold
-    device_driver.alarm_arm()
+    try:
+        device_driver.sensor_start()
+        device_driver.set_sensor_value(sensor_value)
+        device_driver.set_alarm_threshold(threshold)
+        device_driver.alarm_arm()
+        triggered = device_driver.wait_for_alarm_state("TRIGGERED")
 
-    status = device_driver.clear_alarm()
+        status = device_driver.clear_alarm()
 
-    assert status["state"] == "CLEARED"
-    assert status["led_state"] == "OFF"
+        assert triggered["state"] == "TRIGGERED"
+        assert status["state"] == "CLEARED"
+        assert status["led_state"] == "OFF"
+    finally:
+        device_driver.alarm_disarm()
+        device_driver.sensor_stop()
+        device_driver.set_alarm_threshold(80)
 
 
 @pytest.mark.parametrize(
-    "state",
+    "sensor_value",
     [
-        "DISARMED",
-        "ARMED",
+        20,
+        100,
     ],
 )
-def test_alarm_disarm_resets_state(device_driver, state):
-    device_driver.backend.alarm_state = state
+def test_alarm_disarm_resets_state(device_driver, sensor_value):
+    try:
+        device_driver.sensor_start()
+        device_driver.set_sensor_value(sensor_value)
+        device_driver.alarm_arm()
 
-    status = device_driver.alarm_disarm()
+        status = device_driver.alarm_disarm()
 
-    assert status["state"] == "DISARMED"
-    assert status["led_state"] == "OFF"
+        assert status["state"] == "DISARMED"
+        assert status["led_state"] == "OFF"
+    finally:
+        device_driver.sensor_stop()
+        device_driver.set_alarm_threshold(80)

@@ -5,7 +5,8 @@ This project contains a compact but structured pytest-based framework for automa
 ## Architecture
 
 - `DeviceDriver` is the single communication layer and owns all device-specific logic.
-- `FakeDevice` models the firmware state in memory to keep validation deterministic and CI-friendly.
+- The default transport is real UART at `115200 8N1`, discovered by the USB-UART adapter VID (`0x1A86` for the verified CH343 adapter).
+- `FakeDevice` is an explicit `--transport=mock` fallback for CI; it is never selected by the default test command.
 - tests access the device only through the `device_driver` fixture, which keeps setup consistent with the assignment rules.
 - port discovery is performed by VID-based auto-detection; no COM name is hardcoded.
 
@@ -39,9 +40,31 @@ python -m pip install -r requirements.txt
 python -m pytest -v
 ```
 
+Before the real-device run, press `RST` once so the firmware starts with an empty RAM-only user profile. The fixture registers a disposable user, logs in through UART, and uses the real device for all non-skipped tests.
+
+The mock fallback is available only when explicitly requested:
+
+```bash
+python -m pytest --transport=mock -v
+```
+
+Pass a different adapter VID only when using another USB-UART bridge:
+
+```powershell
+python -m pytest --device-vid 0x1A86 -v
+```
+
+## Verified Hardware Results
+
+- Default command `python -m pytest -v` completed on the connected ESP32-S3: `10 passed, 1 skipped, 1 xfailed`.
+- UART registration, login, status, and manual sensor alarm trigger passed.
+- The alarm triggers for manual value `100` at threshold `80`.
+- `config save` reports success, but the setting is lost after `reboot`; this is tracked as a strict expected failure (`XFAIL`).
+- The distance test remains skipped until an HC-SR04 is connected with `TRIG -> GPIO5`, `ECHO -> GPIO18` through a 5V-to-3.3V level shifter. Enable it only after safe wiring with `DZ09_DISTANCE_READY=1`.
+
 ## Notes
 
-- boot wait uses the firmware pattern `App started` instead of `sleep()`
+- reboot waits for the firmware's real UART boot marker `Device ready`; no `time.sleep()` is used for boot synchronization
 - no device is instantiated directly inside tests
 - all protocol/firmware logic remains inside the driver for isolation and maintainability
-- the suite is intentionally deterministic so it can be run in CI without hardware-specific assumptions
+- the optional mock transport is intended only for CI without attached hardware

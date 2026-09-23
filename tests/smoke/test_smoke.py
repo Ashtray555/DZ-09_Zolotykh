@@ -1,15 +1,16 @@
 def test_device_reports_ready_after_boot(device_driver):
     status = device_driver.reboot()
+    device_driver.restore_session()
 
-    assert device_driver.wait_for_pattern("App started") is True
     assert status["ready"] is True
-    assert "App started" in status["boot_log"]
+    assert device_driver.status()["ready"] is True
 
 
-def test_distance_sensor_returns_valid_range(device_driver):
-    distance = device_driver.read_distance()
+def test_device_status_reports_led_state(device_driver):
+    status = device_driver.status()
 
-    assert 1 <= distance <= 400
+    assert status["ready"] is True
+    assert status["led"] in {"ON", "OFF"}
 
 
 def test_default_alarm_state_is_disarmed(device_driver):
